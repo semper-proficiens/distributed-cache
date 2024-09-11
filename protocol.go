@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"io"
 )
 
@@ -37,16 +38,32 @@ func (c *CommandSet) Bytes() []byte {
 	return buf.Bytes()
 }
 
-func ParseCommand(r io.Reader) any {
+func ParseCommand(r io.Reader) (any, error) {
 	var cmd Command
 	binary.Read(r, binary.LittleEndian, &cmd)
 
 	switch cmd {
 	case CmdSet:
-		return parseSetCommand(r)
+		return parseSetCommand(r), nil
+	case CmdGet:
+		return parseGetCommand(r), nil
 	default:
-		panic("invalid command")
+		return nil, errors.New("unknown command")
 	}
+}
+
+type CommandGet struct {
+	Key []byte
+}
+
+func (c *CommandGet) Bytes() []byte {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, CmdGet)
+
+	keyLen := int32(len(c.Key))
+	binary.Write(buf, binary.LittleEndian, keyLen)
+	binary.Write(buf, binary.LittleEndian, c.Key)
+	return buf.Bytes()
 }
 
 func parseSetCommand(r io.Reader) *CommandSet {
@@ -65,6 +82,17 @@ func parseSetCommand(r io.Reader) *CommandSet {
 	var ttl int32
 	binary.Read(r, binary.LittleEndian, &ttl)
 	cmd.TTL = int(ttl)
+
+	return cmd
+}
+
+func parseGetCommand(r io.Reader) *CommandGet {
+	cmd := &CommandGet{}
+
+	var keyLen int32
+	binary.Read(r, binary.LittleEndian, &keyLen)
+	cmd.Key = make([]byte, keyLen)
+	binary.Read(r, binary.LittleEndian, &cmd.Key)
 
 	return cmd
 }
