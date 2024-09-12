@@ -1,9 +1,10 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"github.com/semper-proficiens/distributed-cache/client"
 	"log"
-	"net"
 	"time"
 )
 
@@ -21,27 +22,25 @@ func main() {
 
 	go func() {
 		time.Sleep(time.Second * 2)
-		for i := 0; i < 10; i++ {
-			SendCommand()
-			time.Sleep(time.Millisecond * 200)
+		cc, err := client.NewCacheClient(":3000", client.Options{})
+		if err != nil {
+			log.Fatal(err)
 		}
+		for i := 0; i < 10; i++ {
+			SendCommand(cc)
+		}
+		// test that we can close safely with no error. TODO remove this
+		cc.Close()
+		time.Sleep(time.Second * 1)
 	}()
 
 	server := NewServer(opts, NewCache())
 	server.Start()
 }
 
-func SendCommand() {
-	cmd := &CommandSet{
-		Key:   []byte("Foo"),
-		Value: []byte("Bar"),
-		TTL:   2,
-	}
-
-	conn, err := net.Dial("tcp", ":3000")
+func SendCommand(cc *client.CacheClient) {
+	_, err := cc.Set(context.Background(), []byte("Ernie"), []byte("GO"), 0)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	conn.Write(cmd.Bytes())
 }
