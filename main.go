@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
+	"fmt"
 	"github.com/semper-proficiens/distributed-cache/client"
+	"io"
 	"log"
 	"time"
 )
@@ -21,26 +24,46 @@ func main() {
 	}
 
 	go func() {
+		// time to boot server
 		time.Sleep(time.Second * 2)
-		cc, err := client.NewCacheClient(":3000", client.Options{})
-		if err != nil {
-			log.Fatal(err)
-		}
-		for i := 0; i < 10; i++ {
-			SendCommand(cc)
-		}
-		// test that we can close safely with no error. TODO remove this
-		cc.Close()
-		time.Sleep(time.Second * 1)
+		sendStuff()
 	}()
 
 	server := NewServer(opts, NewCache())
 	server.Start()
 }
 
-func SendCommand(cc *client.CacheClient) {
-	_, err := cc.Set(context.Background(), []byte("Ernie"), []byte("GO"), 0)
-	if err != nil {
-		log.Fatal(err)
+func randomBytes(n int) []byte {
+	b := make([]byte, n)
+	io.ReadFull(rand.Reader, b)
+	return b
+}
+
+func sendStuff() {
+	for i := 0; i < 100; i++ {
+		go func() {
+			cc, err := client.NewCacheClient(":3000", client.Options{})
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var (
+				key   = []byte(fmt.Sprintf("key-%d", i))
+				value = []byte(fmt.Sprintf("value-%d", i))
+			)
+
+			err = cc.Set(context.Background(), key, value, 0)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			resp, err := cc.Get(context.Background(), key)
+			if err != nil {
+				log.Fatal(err)
+			}
+			fmt.Println(string(resp))
+
+			cc.Close()
+		}()
 	}
 }

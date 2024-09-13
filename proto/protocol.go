@@ -7,6 +7,28 @@ import (
 	"io"
 )
 
+type Status byte
+
+func (s Status) String() string {
+	switch s {
+	case StatusError:
+		return "ERR"
+	case StatusOK:
+		return "OK"
+	case StatusNotFound:
+		return "KEYNOTFOUND"
+	default:
+		return "NONE"
+	}
+}
+
+const (
+	StatusNone Status = iota
+	StatusOK
+	StatusError
+	StatusNotFound
+)
+
 type Command byte
 
 const (
@@ -15,6 +37,51 @@ const (
 	CmdGet
 	CmdDel
 )
+
+type ResponseGet struct {
+	Status Status
+	Value  []byte
+}
+
+type ResponseSet struct {
+	Status Status
+}
+
+func (r *ResponseSet) Bytes() []byte {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, r.Status)
+	return buf.Bytes()
+}
+
+func (r *ResponseGet) Bytes() []byte {
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.LittleEndian, r.Status)
+
+	valueLen := int32(len(r.Value))
+	binary.Write(buf, binary.LittleEndian, valueLen)
+	binary.Write(buf, binary.LittleEndian, r.Value)
+
+	return buf.Bytes()
+}
+
+func ParseGetResponse(r io.Reader) (*ResponseGet, error) {
+	resp := new(ResponseGet)
+	err := binary.Read(r, binary.LittleEndian, &resp.Status)
+
+	var valueLen int32
+	binary.Read(r, binary.LittleEndian, &valueLen)
+
+	resp.Value = make([]byte, valueLen)
+	binary.Read(r, binary.LittleEndian, &resp.Value)
+
+	return resp, err
+}
+
+func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
+	resp := new(ResponseSet)
+	err := binary.Read(r, binary.LittleEndian, &resp.Status)
+	return resp, err
+}
 
 type CommandSet struct {
 	Key   []byte

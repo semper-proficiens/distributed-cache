@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sync"
 	"time"
 )
@@ -52,7 +51,6 @@ func (c *Cache) Get(key []byte) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("key (%s) not found", key)
 	}
-	log.Printf("GET %s = %s\n", keyStr, string(v))
 	return v, nil
 }
 
