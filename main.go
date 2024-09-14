@@ -8,13 +8,12 @@ import (
 	"github.com/semper-proficiens/distributed-cache/client"
 	"io"
 	"log"
-	"time"
 )
 
 func main() {
 	var (
 		listenAddr = flag.String("listenaddr", ":3000", "listening address of the server")
-		leaderAddr = flag.String("leaderaddr", ":", "listening address of the leader")
+		leaderAddr = flag.String("leaderaddr", "", "listening address of the leader")
 	)
 	flag.Parse()
 	opts := ServerOpts{
@@ -23,11 +22,11 @@ func main() {
 		LeaderAddr: *leaderAddr,
 	}
 
-	go func() {
-		// time to boot server
-		time.Sleep(time.Second * 2)
-		sendStuff()
-	}()
+	//go func() {
+	//	// time to boot server
+	//	time.Sleep(time.Second * 2)
+	//	sendStuff()
+	//}()
 
 	server := NewServer(opts, NewCache())
 	server.Start()

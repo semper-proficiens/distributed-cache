@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"github.com/semper-proficiens/distributed-cache/proto"
 	"io"
@@ -17,12 +18,14 @@ type ServerOpts struct {
 
 type Server struct {
 	ServerOpts
-	cache Cacher
+	members map[net.Conn]struct{}
+	cache   Cacher
 }
 
 func NewServer(opts ServerOpts, c Cacher) *Server {
 	return &Server{
 		ServerOpts: opts,
+		members:    make(map[net.Conn]struct{}),
 		cache:      c,
 	}
 }
@@ -34,6 +37,16 @@ func (s *Server) Start() error {
 	}
 	log.Printf("server starting on port [%s]\n", s.ListenAddr)
 
+	// dial leader if not leader
+	if !s.IsLeader && len(s.LeaderAddr) != 0 {
+		log.Printf("Attempting to connect to leader at: %s", s.LeaderAddr)
+		go func() {
+			if err = s.dialLeader(); err != nil {
+				log.Println(err)
+			}
+		}()
+	}
+
 	for {
 		// a break here means it stops accepting connections
 		conn, err := ln.Accept()
@@ -44,6 +57,18 @@ func (s *Server) Start() error {
 		// not handling errs
 		go s.handleConn(conn)
 	}
+}
+
+func (s *Server) dialLeader() error {
+	conn, err := net.Dial("tcp", s.LeaderAddr)
+	if err != nil {
+		return fmt.Errorf("failed to connect to leader at [%s]: %v", s.LeaderAddr, err)
+	}
+	log.Println("connected to leader:", s.LeaderAddr)
+
+	binary.Write(conn, binary.LittleEndian, proto.CmdJoin)
+	s.handleConn(conn)
+	return nil
 }
 
 func (s *Server) handleConn(conn net.Conn) {
@@ -73,7 +98,15 @@ func (s *Server) handleCommand(conn net.Conn, cmd any) {
 		s.handleSetCommand(conn, v)
 	case *proto.CommandGet:
 		s.handleGetCommand(conn, v)
+	case *proto.CommandJoin:
+		s.handleJoinCommand(conn, v)
 	}
+}
+
+func (s *Server) handleJoinCommand(conn net.Conn, cmd *proto.CommandJoin) error {
+	fmt.Println("member just joined the cluster:", conn.RemoteAddr())
+	s.members[conn] = struct{}{}
+	return nil
 }
 
 func (s *Server) handleGetCommand(conn net.Conn, cmd *proto.CommandGet) error {

@@ -36,7 +36,21 @@ const (
 	CmdSet
 	CmdGet
 	CmdDel
+	CmdJoin
 )
+
+type CommandGet struct {
+	Key []byte
+}
+
+type CommandSet struct {
+	Key   []byte
+	Value []byte
+	TTL   int
+}
+
+type CommandJoin struct {
+}
 
 type ResponseGet struct {
 	Status Status
@@ -83,12 +97,6 @@ func ParseSetResponse(r io.Reader) (*ResponseSet, error) {
 	return resp, err
 }
 
-type CommandSet struct {
-	Key   []byte
-	Value []byte
-	TTL   int
-}
-
 func (c *CommandSet) Bytes() []byte {
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.LittleEndian, CmdSet)
@@ -116,13 +124,11 @@ func ParseCommand(r io.Reader) (any, error) {
 		return parseSetCommand(r), nil
 	case CmdGet:
 		return parseGetCommand(r), nil
+	case CmdJoin:
+		return &CommandJoin{}, nil
 	default:
 		return nil, errors.New("unknown command")
 	}
-}
-
-type CommandGet struct {
-	Key []byte
 }
 
 func (c *CommandGet) Bytes() []byte {
